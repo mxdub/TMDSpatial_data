@@ -14,6 +14,11 @@ model{
     x[i,1] ~ dbern(psi)
   }
   
+  for(j in 2:n_year){
+    logit(c[j]) = c_log[j]
+    c_log[j] ~ dnorm(0, 0.1)
+  }
+
   # Indicating the logit link
   logit(e) = e_log
   logit(psi) = psi_log
@@ -25,10 +30,5 @@ model{
   e_log ~ dnorm(0, 0.1)
   psi_log ~ dnorm(0, 0.1)
   # detec_log ~ dnorm(0, 0.1)
-
-  for(j in 2:n_year){
-    logit(c[j]) = c_log[j]
-    c_log[j] ~ dnorm(0, 0.1)
-  }
 
 }

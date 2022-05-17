@@ -7,6 +7,40 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r, echo = F}
+
+plot_envt_effect = function(env1, c_boot, e_boot, envt_opt){
+  p_boot = c_boot / (e_boot+c_boot)
+
+  to_p=tibble(x = env1,
+         median = apply(p_boot,2,median),
+         q_min = apply(p_boot,2,quantile, 0.025),
+         q_max = apply(p_boot,2,quantile, 0.975),
+         param = "expect_p")
+  to_c=tibble(x = env1,
+         median = apply(c_boot,2,median),
+         q_min = apply(c_boot,2,quantile, 0.025),
+         q_max = apply(c_boot,2,quantile, 0.975),
+         param = "col.")
+  to_e=tibble(x = env1,
+         median = apply(e_boot,2,median),
+         q_min = apply(e_boot,2,quantile, 0.025),
+         q_max = apply(e_boot,2,quantile, 0.975),
+         param = "ext.")
+  
+  toplot = rbind(to_p, to_c, to_e)
+  
+  ggplot(toplot, aes(x = x, y = median, color = param))+
+    geom_point()+
+    geom_ribbon(aes(ymin = q_min, ymax = q_max), alpha = 0.1)+
+    geom_vline(xintercept= envt_opt )+
+    scale_y_continuous(limits=c(0,1))+
+    theme_bw()
+}
+
+```
+
+
 ## The simulation framework
 
 ### Install
@@ -50,15 +84,18 @@ The typical use of that function :
 n_patch = 200
 n_species = 2
 
+# Define environmental optima
+envt_opt = c(0.35, 0.65)
+
 sim = simulate_MC(patches = n_patch,     # Number of patch
                   species = n_species,   # Number of species
                   kernel_exp = 0.001,    # Rate of decrease of disp. kernel (e.g. P(disp) = exp(-kernel_exp*dist(i,j)))
-                  env1Scale = 100,
-                  env_optima = c(0.35, 0.65),
-                  env_niche_breadth = 0.07,
+                  env1Scale = 100,       # Low spatial autocorrelation for envt (not important)
+                  env_optima = envt_opt, # Environmental effects are Gaussian around optimum
+                  env_niche_breadth = 0.07, # Niche breadth (~ sd of the Gaussian)
                   int_mat = matrix( c(0.05,0.00,
-                                      0.00,0.05) , nrow = 2, ncol = 2),
-                  local_start = F)
+                                      0.00,0.05) , nrow = 2, ncol = 2), # Interaction matrix
+                  local_start = F) # Whether to start with clusered pop. or not
 
 ```
 
@@ -124,7 +161,7 @@ $$x_t = x_{t-1} (1-\epsilon) + (1 - x_{t-1}) \gamma $$
 
 Where both $\epsilon$ and $\gamma$ as constant probabilities.
 
-JAGS implementation is given in the MacKenzie_mp.txt file :
+JAGS implementation is given in the MacKenzie_mp file :
 
 ```{r, eval = F}
 
@@ -144,7 +181,7 @@ model{
     x[i,1] ~ dbern(psi)
   }
   
-  # Indicating the logit link
+  # Logit link
   logit(e) = e_log
   logit(c) = c_log
   logit(psi) = psi_log
@@ -198,7 +235,7 @@ Then, fit the model and simulate data
 ```{r}
 parameters <- c('e', 'c', 'psi', 'detec')
 
-jm = jags(model.file = "./model/MacKenzie_mp.txt",
+jm = jags(model.file = "./model/MacKenzie_mp",
           data = datax,
           inits = inits,
           n.chains = 1,
@@ -240,18 +277,19 @@ rep = as_tibble(rep) %>%
   rownames_to_column() %>%
   pivot_longer(-rowname) %>% 
   mutate(name = map_dbl(.x = name,
-                        .f = function(x) as.numeric(str_remove(x, 'V'))))
+                        .f = function(x) as.numeric(str_remove(x, 'V')))) %>%
+  mutate(col = case_when(name %in% 1:serie_length ~ 'fit', TRUE ~ 'extra')  )
 
 obs_ = occupancies[species,,start_point:(start_point+serie_length-1+time_out_fit)]
 obs_ = tibble(year = 1:(serie_length+time_out_fit),
-              x = apply(obs_, 2, mean),
-              col = c(rep('fitted',serie_length), rep('simulate', time_out_fit)))
+              x = apply(obs_, 2, mean))
 
 
 ggplot(rep)+
-  geom_boxplot(aes(x = name, y = value, group = name))+
-  geom_point(data = obs_, aes(x=year, y = x, color = col), size = 4)+
+  geom_boxplot(aes(x = name, y = value, group = name, color = col))+
+  geom_point(data = obs_, aes(x=year, y = x), size = 3)+
   scale_y_continuous(limits = c(0,1))+
+  labs(y='Occupancy', x='Time Step')+
   theme_bw()
 
 ```
@@ -259,6 +297,7 @@ ggplot(rep)+
 ### Simple metapopulation model (MacKenzie like) - with time-varying colonization rate
 
 How could write a model with time varying colonization rate ? Could that be used for projections ?
+
 
 ### Simple metapopulation model (more Levins like) - with colonization rate depending on mp occupancy
 
@@ -272,12 +311,12 @@ with
 
 $$\gamma_t = 1 - e^{-c.\bar{x_t}}$$
 
-Note, $c$ is now a rate and not a probability (see line 20 in the Levins_like.txt model - we are therefor using the log() instead of logit())
+Note, $c$ is now a rate and not a probability (see line 20 in the Levins_like model - we are therefor using the log() instead of logit())
 
 ```{r}
 parameters <- c('e', 'c', 'psi', 'detec')
 
-jm = jags(model.file = "./model/Levins_like.txt",
+jm = jags(model.file = "./model/Levins_like",
           data = datax,
             inits = inits,
           n.chains = 1,
@@ -311,23 +350,35 @@ rep = as_tibble(rep) %>%
   rownames_to_column() %>%
   pivot_longer(-rowname) %>% 
   mutate(name = map_dbl(.x = name,
-                        .f = function(x) as.numeric(str_remove(x, 'V'))))
+                        .f = function(x) as.numeric(str_remove(x, 'V')))) %>%
+  mutate(col = case_when(name %in% 1:serie_length ~ 'fit', TRUE ~ 'extra')  )
 
 obs_ = occupancies[species,,start_point:(start_point+serie_length-1+time_out_fit)]
 obs_ = tibble(year = 1:(serie_length+time_out_fit),
-              x = apply(obs_, 2, mean),
-              col = c(rep('fitted',serie_length), rep('simulate', time_out_fit)))
+              x = apply(obs_, 2, mean))
 
 
 ggplot(rep)+
-  geom_boxplot(aes(x = name, y = value, group = name))+
-  geom_point(data = obs_, aes(x=year, y = x, color = col), size = 4)+
+  geom_boxplot(aes(x = name, y = value, group = name, color = col))+
+  geom_point(data = obs_, aes(x=year, y = x), size = 3)+
   scale_y_continuous(limits = c(0,1))+
+  labs(y='Occupancy', x='Time Steps')+
   theme_bw()
+
 
 ```
 
 ### Simple metapopulation model (MacKenzie like) - with environmental effects on demographic rates
+
+Let now reuse MacKenzie model, but including environmental covariates.
+
+The model takes the following form :
+
+$$x_{i,t} = x_{i,t-1} (1-\epsilon_i) + (1 - x_{i,t-1}) \gamma_i $$
+
+Both extinction and colonization parameters are now site-specific (i.e. $\epsilon_i$, $\gamma_i$), because they are probabilities (within $[0,1]$), a logit() transform have to be used to regress them on environmental variables.
+
+$$\epsilon_i = \frac{1}{1+e^{-(\mu_{\epsilon}+\mathbf{\beta_{\epsilon}}X)}}, \gamma_i = \frac{1}{1+e^{-(\mu_{\gamma}+\mathbf{\beta_{\gamma}}X)}}$$
 
 ```{r}
 
@@ -372,33 +423,19 @@ envt_matrix = as.matrix(tibble(intcp = 1, env1 = dt_envt_scaled[,1]) %>% mutate(
 c_boot = inv.logit(c_related_param %*% t(envt_matrix))
 e_boot = inv.logit(e_related_param %*% t(envt_matrix))
 
-p_boot = c_boot / (e_boot+c_boot)
+plot_envt_effect(data_envt$env1, c_boot, e_boot, species)
 
-to_p=tibble(x = data_envt$env1,
-       median = apply(p_boot,2,median),
-       q_min = apply(p_boot,2,quantile, 0.025),
-       q_max = apply(p_boot,2,quantile, 0.975),
-       param = "expect_p")
-to_c=tibble(x = data_envt$env1,
-       median = apply(c_boot,2,median),
-       q_min = apply(c_boot,2,quantile, 0.025),
-       q_max = apply(c_boot,2,quantile, 0.975),
-       param = "col.")
-to_e=tibble(x = data_envt$env1,
-       median = apply(e_boot,2,median),
-       q_min = apply(e_boot,2,quantile, 0.025),
-       q_max = apply(e_boot,2,quantile, 0.975),
-       param = "ext.")
+## Presence probabilities
 
-toplot = rbind(to_p, to_c, to_e)
+plot(apply(p_boot, 2, median) ~ apply(occupancies[species,,], 1, mean), xlim = c(0,1), ylim = c(0,1))
 
-ggplot(toplot, aes(x = x, y = median, color = param))+
-  geom_point()+
-  geom_ribbon(aes(ymin = q_min, ymax = q_max), alpha = 0.1)+
-  geom_vline(xintercept=0.65)+
-  scale_y_continuous(limits=c(0,1))+
-  theme_bw()
+```
 
+
+Some thoughts... Why colonization rate never reach zero ? What's telling us about the (simulation) model ?
+
+
+```{r}
 ## Add simulation ?
 
 n_rep = 50
@@ -424,20 +461,22 @@ rep = as_tibble(rep) %>%
   rownames_to_column() %>%
   pivot_longer(-rowname) %>% 
   mutate(name = map_dbl(.x = name,
-                        .f = function(x) as.numeric(str_remove(x, 'V'))))
+                        .f = function(x) as.numeric(str_remove(x, 'V')))) %>%
+  mutate(col = case_when(name %in% 1:serie_length ~ 'fit', TRUE ~ 'extra')  )
 
 obs_ = occupancies[species,,start_point:(start_point+serie_length-1+time_out_fit)]
 obs_ = tibble(year = 1:(serie_length+time_out_fit),
-              x = apply(obs_, 2, mean),
-              col = c(rep('fitted',serie_length), rep('simulate', time_out_fit)))
-
+              x = apply(obs_, 2, mean))
 
 ggplot(rep)+
-  geom_boxplot(aes(x = name, y = value, group = name))+
-  geom_point(data = obs_, aes(x=year, y = x, color = col), size = 4)+
+  geom_boxplot(aes(x = name, y = value, group = name, color = col))+
+  geom_point(data = obs_, aes(x=year, y = x), size = 3)+
   scale_y_continuous(limits = c(0,1))+
   theme_bw()
 
+## Presence probabilities
+
+plot(apply(p_boot, 2, median) ~ apply(occupancies[species,,], 1, mean), xlim = c(0,1), ylim = c(0,1))
 
 ```
 
@@ -472,35 +511,12 @@ e_related_param = jm$BUGSoutput$sims.array[,1,c('mu_e', 'beta_e', 'beta_sqr_e')]
 
 envt_matrix = as.matrix(tibble(intcp = 1, env1 = dt_envt_scaled[,1]) %>% mutate(env1sqr = env1^2))
 
-c_boot = (1-exp(-exp(c_related_param %*% t(envt_matrix)))) # Assuming a full metapopulation
+mp_occupancy = 1 # Assuming a full metapopulation
+
+c_boot = (1-exp(-exp(c_related_param %*% t(envt_matrix))*mp_occupancy)) 
 e_boot = inv.logit(e_related_param %*% t(envt_matrix))
 
-p_boot = c_boot / (e_boot+c_boot)
-
-to_p=tibble(x = data_envt$env1,
-       median = apply(p_boot,2,median),
-       q_min = apply(p_boot,2,quantile, 0.025),
-       q_max = apply(p_boot,2,quantile, 0.975),
-       param = "expect_p")
-to_c=tibble(x = data_envt$env1,
-       median = apply(c_boot,2,median),
-       q_min = apply(c_boot,2,quantile, 0.025),
-       q_max = apply(c_boot,2,quantile, 0.975),
-       param = "col.")
-to_e=tibble(x = data_envt$env1,
-       median = apply(e_boot,2,median),
-       q_min = apply(e_boot,2,quantile, 0.025),
-       q_max = apply(e_boot,2,quantile, 0.975),
-       param = "ext.")
-
-toplot = rbind(to_p, to_c, to_e)
-
-ggplot(toplot, aes(x = x, y = median, color = param))+
-  geom_point()+
-  geom_ribbon(aes(ymin = q_min, ymax = q_max), alpha = 0.1)+
-  geom_vline(xintercept=0.65)+
-  scale_y_continuous(limits=c(0,1))+
-  theme_bw()
+plot_envt_effect(data_envt$env1, c_boot, e_boot, species)
 
 ## Add simulation ?
 
@@ -543,3 +559,365 @@ ggplot(rep)+
   theme_bw()
 
 ```
+
+## More than one species (well, two...)
+
+They are the same models as previously but include an additional dimension !
+
+Let's simulate new data, but with competitive interactions now !
+
+```{r}
+
+n_patch = 200
+n_species = 2
+
+# Define environmental optima
+envt_opt = c(0.35, 0.65)
+
+sim = simulate_MC(patches = n_patch,     # Number of patch
+                  species = n_species,   # Number of species
+                  kernel_exp = 0.001,    # Rate of decrease of disp. kernel (e.g. P(disp) = exp(-kernel_exp*dist(i,j)))
+                  env1Scale = 100,       # Low spatial autocorrelation for envt (not important)
+                  env_optima = envt_opt, # Environmental effects are Gaussian around optimum
+                  env_niche_breadth = 0.1, # Niche breadth (~ sd of the Gaussian)
+                  int_mat = matrix( c(0.05,0.07,
+                                      0.01,0.05) , nrow = 2, ncol = 2), # Interaction matrix
+                  local_start = F) # Whether to start with clusered pop. or not
+
+data_envt = get_envt(sim)
+
+
+abundances = sim_to_matrix(sim)
+occupancies = abund_to_occ(abundances)
+
+plots_occupancies(occupancies)
+
+```
+
+
+Prepare data for JAGS :
+
+```{r}
+
+# Prepare data
+
+serie_length = 20
+start_point = 25
+
+obs = occupancies[,,start_point:(start_point+serie_length-1)]
+
+
+# Define # of patch & # of years
+n_species = dim(obs)[1]
+n_site = dim(obs)[2]
+n_year = dim(obs)[3]
+
+dt_envt_scaled = as.data.frame(scale(data_envt))
+dt_envt_scaled$env1sqr = (dt_envt_scaled$env1)^2
+
+# Create a datalist for JAGS (with needed variables)
+datax <- list(obs = obs,
+              n_species = n_species,
+              n_site = n_site,
+              n_year = n_year,
+              envt = dt_envt_scaled)
+
+parameters <- c('psi', 'mu_c', 'mu_e', 'beta_c', 'beta_e', 'beta_sqr_c', 'beta_sqr_e')
+
+# And also some inits values (only for patch state - needed to replace NA)
+x = obs
+x[is.na(x)] = sample(c(0,1), sum(is.na(x)), replace = T)
+inits = list(list(x = x))
+
+```
+
+### Time-constant colonization
+
+```{r}
+
+jm = jags(model.file = "./model/MacKenzie_mp_envt_morespecies",
+          data = datax,
+            inits = inits,
+          n.chains = 1,
+          n.iter = 2000,
+          n.burnin = 500,
+          n.thin = 5,
+          parameters.to.save = parameters)
+
+print(jm)
+
+c_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_c[1]', 'beta_c[1]', 'beta_sqr_c[1]')],
+                       jm$BUGSoutput$sims.array[,1,c('mu_c[2]', 'beta_c[2]', 'beta_sqr_c[2]')])
+e_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_e[1]', 'beta_e[1]', 'beta_sqr_e[1]')],
+                       jm$BUGSoutput$sims.array[,1,c('mu_e[2]', 'beta_e[2]', 'beta_sqr_e[2]')])
+
+envt_matrix = as.matrix(tibble(intcp = 1, env1 = dt_envt_scaled[,1]) %>% mutate(env1sqr = env1^2))
+
+c_boot = list( inv.logit(c_related_param[[1]] %*% t(envt_matrix)),
+               inv.logit(c_related_param[[2]] %*% t(envt_matrix)) )
+
+e_boot = list( inv.logit(e_related_param[[1]] %*% t(envt_matrix)),
+               inv.logit(e_related_param[[2]] %*% t(envt_matrix)) )
+
+
+cowplot::plot_grid(plot_envt_effect(data_envt$env1, c_boot[[1]], e_boot[[1]], envt_opt[1]),
+                    plot_envt_effect(data_envt$env1, c_boot[[2]], e_boot[[2]], envt_opt[2]),
+                   ncol = 2)
+
+
+## Presence probabilities
+p_boot = list(c_boot[[1]]/(c_boot[[1]]+e_boot[[1]]),
+              c_boot[[2]]/(c_boot[[2]]+e_boot[[2]]))
+plot(apply(p_boot[[1]], 2, median) ~ apply(occupancies[1,,], 1, mean), xlim = c(0,1), ylim = c(0,1))
+abline(a=0, b=1, add = TRUE)
+
+plot(apply(p_boot[[2]], 2, median) ~ apply(occupancies[2,,], 1, mean), xlim = c(0,1), ylim = c(0,1))
+abline(a=0, b=1, add = TRUE)
+
+```
+```{r}
+## Add simulation ?
+
+n_rep = 50
+time_out_fit = 100
+samples_length = dim(c_related_param[[1]])[1]
+
+rep = structure(.Data = rep(0, n_species*n_rep*(serie_length+time_out_fit)),
+              .Dim = c(n_species, n_rep, serie_length+time_out_fit))
+z = structure(.Data = rep(0, n_species*n_site*(serie_length+time_out_fit)),
+              .Dim = c(n_species, n_site, serie_length+time_out_fit))
+
+for(s in 1:n_species){
+  for(r in 1:n_rep){
+    z[s,,1] = obs[s,,1]
+    for(i in 2:(serie_length+time_out_fit))
+      # Simulate patch dynamic (including uncertainty from the posterior distributions)
+      z[s,,i] = sapply(z[s,,i-1]*(1-inv.logit((e_related_param[[s]][sample(1:samples_length, 1),] %*% t(envt_matrix))[1,]))+
+                    (1-z[s,,i-1])*inv.logit((c_related_param[[s]][sample(1:samples_length, 1),] %*% t(envt_matrix))[1,]),
+                    FUN = function(x) rbinom(1,1,x) )
+    rep[s,r,] = apply(z[s,,], 2, mean)
+  }
+}
+
+# Reformat for plotting
+g = list()
+for(s in 1:n_species){
+  rep_ = as_tibble(rep[s,,]) %>% 
+    rownames_to_column() %>%
+    pivot_longer(-rowname) %>% 
+    mutate(name = map_dbl(.x = name,
+                          .f = function(x) as.numeric(str_remove(x, 'V')))) %>%
+    mutate(col = case_when(name %in% 1:serie_length ~ 'fit', TRUE ~ 'extra')  )
+  
+  obs_ = occupancies[s,,start_point:(start_point+serie_length-1+time_out_fit)]
+  obs_ = tibble(year = 1:(serie_length+time_out_fit),
+                x = apply(obs_, 2, mean))
+  
+  g[[s]] = ggplot(rep_)+
+    geom_boxplot(aes(x = name, y = value, group = name, color = col))+
+    geom_point(data = obs_, aes(x=year, y = x), size = 3)+
+    scale_y_continuous(limits = c(0,1))+
+    theme_bw()
+}
+
+cowplot::plot_grid(g[[1]], g[[2]], ncol=2)
+
+```
+### Time-varying colonization
+
+```{r, eval = F, echo = F}
+jm = jags(model.file = "./model/Levins_like_envt_morespecies",
+          data = datax,
+            inits = inits,
+          n.chains = 1,
+          n.iter = 2000,
+          n.burnin = 500,
+          n.thin = 5,
+          parameters.to.save = parameters)
+
+print(jm)
+
+c_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_c[1]', 'beta_c[1]', 'beta_sqr_c[1]')],
+                       jm$BUGSoutput$sims.array[,1,c('mu_c[2]', 'beta_c[2]', 'beta_sqr_c[2]')])
+e_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_e[1]', 'beta_e[1]', 'beta_sqr_e[1]')],
+                       jm$BUGSoutput$sims.array[,1,c('mu_e[2]', 'beta_e[2]', 'beta_sqr_e[2]')])
+
+# 
+# c_boot = (1-exp(-exp(c_related_param %*% t(envt_matrix))*mp_occupancy)) 
+# e_boot = inv.logit(e_related_param %*% t(envt_matrix))
+
+
+envt_matrix = as.matrix(tibble(intcp = 1, env1 = dt_envt_scaled[,1]) %>% mutate(env1sqr = env1^2))
+
+mp_occupancy = 1 # Assuming a full metapopulation
+
+c_boot = list( (1-exp(-exp(c_related_param[[1]] %*% t(envt_matrix))*mp_occupancy)),
+               (1-exp(-exp(c_related_param[[2]] %*% t(envt_matrix))*mp_occupancy)) )
+
+e_boot = list( inv.logit(e_related_param[[1]] %*% t(envt_matrix)),
+               inv.logit(e_related_param[[2]] %*% t(envt_matrix)) )
+
+
+cowplot::plot_grid(plot_envt_effect(data_envt$env1, c_boot[[1]], e_boot[[1]], envt_opt[1]),
+                    plot_envt_effect(data_envt$env1, c_boot[[2]], e_boot[[2]], envt_opt[2]),
+                   ncol = 2)
+
+
+
+```
+```{r}
+## Add simulation ?
+
+n_rep = 50
+time_out_fit = 100
+samples_length = dim(c_related_param[[1]])[1]
+
+rep = structure(.Data = rep(0, n_species*n_rep*(serie_length+time_out_fit)),
+              .Dim = c(n_species, n_rep, serie_length+time_out_fit))
+z = structure(.Data = rep(0, n_species*n_site*(serie_length+time_out_fit)),
+              .Dim = c(n_species, n_site, serie_length+time_out_fit))
+
+for(s in 1:n_species){
+  for(r in 1:n_rep){
+    z[s,,1] = obs[s,,1]
+    for(i in 2:(serie_length+time_out_fit))
+      # Simulate patch dynamic (including uncertainty from the posterior distributions)
+      z[s,,i] = sapply(z[s,,i-1]*(1-inv.logit((e_related_param[[s]][sample(1:samples_length, 1),] %*% t(envt_matrix))[1,]))+
+                    (1-z[s,,i-1])*(1-exp(-(exp(c_related_param[[s]][sample(1:samples_length, 1),] %*% t(envt_matrix))[1,]*mean(z[s,,i-1]))) ),
+                    FUN = function(x) rbinom(1,1,x) )
+    rep[s,r,] = apply(z[s,,], 2, mean)
+  }
+}
+
+# Reformat for plotting
+g = list()
+for(s in 1:n_species){
+  rep_ = as_tibble(rep[s,,]) %>% 
+    rownames_to_column() %>%
+    pivot_longer(-rowname) %>% 
+    mutate(name = map_dbl(.x = name,
+                          .f = function(x) as.numeric(str_remove(x, 'V')))) %>%
+    mutate(col = case_when(name %in% 1:serie_length ~ 'fit', TRUE ~ 'extra')  )
+  
+  obs_ = occupancies[s,,start_point:(start_point+serie_length-1+time_out_fit)]
+  obs_ = tibble(year = 1:(serie_length+time_out_fit),
+                x = apply(obs_, 2, mean))
+  
+  g[[s]] = ggplot(rep_)+
+    geom_boxplot(aes(x = name, y = value, group = name, color = col))+
+    geom_point(data = obs_, aes(x=year, y = x), size = 3)+
+    scale_y_continuous(limits = c(0,1))+
+    theme_bw()
+}
+
+cowplot::plot_grid(g[[1]], g[[2]], ncol=2)
+
+```
+
+What kind of improvement can be made on such models ? (think HMSC)
+
+
+### Interacting species ?
+
+```{r}
+
+# Create a datalist for JAGS (with needed variables)
+datax <- list(obs = obs,
+              n_species = n_species,
+              n_site = n_site,
+              n_year = n_year,
+              envt = dt_envt_scaled,
+              switch = c(2,1) )
+
+parameters <- c('psi', 'mu_c', 'mu_e', 'beta_c', 'beta_e', 'beta_sqr_c', 'beta_sqr_e', 'gamma_e', 'gamma_c')
+
+jm = jags(model.file = "./model/MacKenzie_mp_envt_morespecies_interacting",
+          data = datax,
+            inits = inits,
+          n.chains = 1,
+          n.iter = 3000,
+          n.burnin = 100,
+          n.thin = 5,
+          parameters.to.save = parameters)
+
+
+print(jm)
+
+c_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_c[1]', 'beta_c[1]', 'beta_sqr_c[1]')],
+                       jm$BUGSoutput$sims.array[,1,c('mu_c[2]', 'beta_c[2]', 'beta_sqr_c[2]')])
+e_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_e[1]', 'beta_e[1]', 'beta_sqr_e[1]')],
+                       jm$BUGSoutput$sims.array[,1,c('mu_e[2]', 'beta_e[2]', 'beta_sqr_e[2]')])
+
+# 
+# c_boot = (1-exp(-exp(c_related_param %*% t(envt_matrix))*mp_occupancy)) 
+# e_boot = inv.logit(e_related_param %*% t(envt_matrix))
+
+
+envt_matrix = as.matrix(tibble(intcp = 1, env1 = dt_envt_scaled[,1]) %>% mutate(env1sqr = env1^2))
+
+mp_occupancy = 1 # Assuming a full metapopulation
+
+c_boot = list( (1-exp(-exp(c_related_param[[1]] %*% t(envt_matrix))*mp_occupancy)),
+               (1-exp(-exp(c_related_param[[2]] %*% t(envt_matrix))*mp_occupancy)) )
+
+e_boot = list( inv.logit(e_related_param[[1]] %*% t(envt_matrix)),
+               inv.logit(e_related_param[[2]] %*% t(envt_matrix)) )
+
+
+cowplot::plot_grid(plot_envt_effect(data_envt$env1, c_boot[[1]], e_boot[[1]], envt_opt[1]),
+                    plot_envt_effect(data_envt$env1, c_boot[[2]], e_boot[[2]], envt_opt[2]),
+                   ncol = 2)
+
+
+```
+
+
+```{r}
+## Add simulation ?
+
+n_rep = 50
+time_out_fit = 100
+samples_length = dim(c_related_param[[1]])[1]
+
+rep = structure(.Data = rep(0, n_species*n_rep*(serie_length+time_out_fit)),
+              .Dim = c(n_species, n_rep, serie_length+time_out_fit))
+z = structure(.Data = rep(0, n_species*n_site*(serie_length+time_out_fit)),
+              .Dim = c(n_species, n_site, serie_length+time_out_fit))
+
+for(s in 1:n_species){
+  for(r in 1:n_rep){
+    z[s,,1] = obs[s,,1]
+    for(i in 2:(serie_length+time_out_fit))
+      # Simulate patch dynamic (including uncertainty from the posterior distributions)
+      z[s,,i] = sapply(z[s,,i-1]*(1-inv.logit((e_related_param[[s]][sample(1:samples_length, 1),] %*% t(envt_matrix))[1,]))+
+                    (1-z[s,,i-1])*(1-exp(-(exp(c_related_param[[s]][sample(1:samples_length, 1),] %*% t(envt_matrix))[1,]*mean(z[s,,i-1]))) ),
+                    FUN = function(x) rbinom(1,1,x) )
+    rep[s,r,] = apply(z[s,,], 2, mean)
+  }
+}
+
+# Reformat for plotting
+g = list()
+for(s in 1:n_species){
+  rep_ = as_tibble(rep[s,,]) %>% 
+    rownames_to_column() %>%
+    pivot_longer(-rowname) %>% 
+    mutate(name = map_dbl(.x = name,
+                          .f = function(x) as.numeric(str_remove(x, 'V')))) %>%
+    mutate(col = case_when(name %in% 1:serie_length ~ 'fit', TRUE ~ 'extra')  )
+  
+  obs_ = occupancies[s,,start_point:(start_point+serie_length-1+time_out_fit)]
+  obs_ = tibble(year = 1:(serie_length+time_out_fit),
+                x = apply(obs_, 2, mean))
+  
+  g[[s]] = ggplot(rep_)+
+    geom_boxplot(aes(x = name, y = value, group = name, color = col))+
+    geom_point(data = obs_, aes(x=year, y = x), size = 3)+
+    scale_y_continuous(limits = c(0,1))+
+    theme_bw()
+}
+
+cowplot::plot_grid(g[[1]], g[[2]], ncol=2)
+
+```
+

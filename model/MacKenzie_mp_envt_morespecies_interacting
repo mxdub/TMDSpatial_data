@@ -1,0 +1,57 @@
+model{
+
+  # Define the underlying model - as well as the observation process (although not used here - d = 1)
+  for(i in 1:n_site){
+    for(j in 2:n_year){
+      for(s in 1:n_species){
+        obs[s,i,j] ~ dbern(x[s,i,j]*detec)
+        x[s,i,j] ~ dbern( x[s,i,j-1] * (1-e[s,i,j]) + (1-x[s,i,j-1])*c[s,i,j] )
+      }
+    }
+  }
+
+  
+  # For first year, init with from psi parameter (because the first needs to be fitted)
+  for(i in 1:n_site){
+    for(s in 1:n_species){
+      x[s,i,1] ~ dbern(psi[s])
+    }
+  }
+  
+  # Define site-specific extinction and colonisation rate
+
+  # Indicating the logit link
+  for(i in 1:n_site){
+  for(j in 2:n_year){
+    for(s in 1:n_species){
+      logit(e[s,i,j]) = mu_e[s] + beta_e[s] * envt[i,1] + beta_sqr_e[s] * envt[i,2] + gamma_e[s] * obs[switch[s],i,j-1]
+      logit(c[s,i,j]) = mu_c[s] + beta_c[s] * envt[i,1] + beta_sqr_c[s] * envt[i,2] + gamma_c[s] * obs[switch[s],i,j-1]
+    }
+  }
+  }
+
+
+  for(s in 1:n_species){
+    logit(psi[s]) = psi_log[s]
+
+    mu_e[s] ~ dnorm(0, 0.1)
+    beta_e[s] ~ dnorm(0, 0.1)
+    beta_sqr_e[s] ~ dnorm(0, 0.1)
+
+    mu_c[s] ~ dnorm(0, 0.1)
+    beta_c[s] ~ dnorm(0, 0.1)
+    beta_sqr_c[s] ~ dnorm(0, 0.1)
+
+
+    psi_log[s] ~ dnorm(0, 0.1)
+
+    gamma_e[s] ~ dnorm(0, 0.1)T(0,)
+    gamma_c[s] ~ dnorm(0, 0.1)T(,0)
+    
+  }
+  
+  
+  # logit(detec) = detec_log
+  detec = 1
+
+}

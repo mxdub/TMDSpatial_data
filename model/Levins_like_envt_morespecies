@@ -1,0 +1,55 @@
+model{
+
+  for(i in 1:n_site){
+    for(j in 2:n_year){
+      for(s in 1:n_species){
+        obs[s,i,j] ~ dbern(x[s,i,j]*detec)
+        x[s,i,j] ~ dbern( x[s,i,j-1] * (1-e[s,i]) + (1-x[s,i,j-1])*gamma[s,i, j] )
+      }
+    }
+  }
+
+  for(j in 2:n_year){
+    
+    for(s in 1:n_species){
+      for(i in 1:n_site){
+        gamma[s,i,j] = 1 - exp(- c[s,i] * z[s,j-1])
+      }
+
+    z[s,j-1] = mean(obs[s,,j-1])
+    }
+    
+  }
+
+  for(s in 1:n_species){
+    for(i in 1:n_site){
+      x[s,i,1] ~ dbern(psi[s])
+    }
+  }
+  
+
+  for(i in 1:n_site){
+    for(s in 1:n_species){
+      logit(e[s,i]) = mu_e[s] + beta_e[s] * envt[i,1] + beta_sqr_e[s] * envt[i,2] 
+      log(c[s,i]) = mu_c[s] + beta_c[s] * envt[i,1] + beta_sqr_c[s] * envt[i,2]
+    }
+  }
+
+
+  for(s in 1:n_species){
+    logit(psi[s]) = psi_log[s]
+    mu_e[s] ~ dnorm(0, 0.1)
+    beta_e[s] ~ dnorm(0, 0.1)
+    beta_sqr_e[s] ~ dnorm(0, 0.1)
+
+    mu_c[s] ~ dnorm(0, 0.1)
+    beta_c[s] ~ dnorm(0, 0.1)
+    beta_sqr_c[s] ~ dnorm(0, 0.1)
+
+    psi_log[s] ~ dnorm(0, 0.1)
+  }
+  
+  detec = 1
+
+  
+}
