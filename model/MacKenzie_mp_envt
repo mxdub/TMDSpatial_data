@@ -4,7 +4,7 @@ model{
   for(i in 1:n_site){
     for(j in 2:n_year){
         obs[i,j] ~ dbern(x[i,j]*detec)
-        x[i,j] ~ dbern( x[i,j-1] * (1-e) + (1-x[i,j-1])*c )
+        x[i,j] ~ dbern( x[i,j-1] * (1-e[i]) + (1-x[i,j-1])*c[i] )
     }
   }
 
@@ -14,17 +14,30 @@ model{
     x[i,1] ~ dbern(psi)
   }
   
+  # Define site-specific extinction and colonisation rate
+
   # Indicating the logit link
-  logit(e) = e_log
-  logit(c) = c_log
+  for(i in 1:n_site){
+    logit(e[i]) = mu_e + beta_e * envt[i,1] + beta_sqr_e * envt[i,2] 
+    logit(c[i]) = mu_c + beta_c * envt[i,1] + beta_sqr_c * envt[i,2]
+  }
+
   logit(psi) = psi_log
+  
   # logit(detec) = detec_log
   detec = 1
 
   
   # Define prior for e/c/psi on logit scale
-  e_log ~ dnorm(0, 0.1)
-  c_log ~ dnorm(0, 0.1)
+  mu_e ~ dnorm(0, 0.1)
+  beta_e ~ dnorm(0, 0.1)
+  beta_sqr_e ~ dnorm(0, 0.1)
+
+  mu_c ~ dnorm(0, 0.1)
+  beta_c ~ dnorm(0, 0.1)
+  beta_sqr_c ~ dnorm(0, 0.1)
+
+
   psi_log ~ dnorm(0, 0.1)
   # detec_log ~ dnorm(0, 0.1)
 

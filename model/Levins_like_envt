@@ -1,0 +1,48 @@
+model{
+
+  for(i in 1:n_site){
+    for(j in 2:n_year){
+        obs[i,j] ~ dbern(x[i,j]*detec)
+        x[i,j] ~ dbern( x[i,j-1] * (1-e[i]) + (1-x[i,j-1])*gamma[i, j] )
+    }
+  }
+
+  for(j in 2:n_year){
+    
+    for(i in 1:n_site){
+      gamma[i,j] = 1 - exp(- c[i] * z[j-1])
+    }
+    
+    # z[j-1] = mean(x[,j-1])
+    z[j-1] = mean(obs[,j-1])
+  }
+
+  for(i in 1:n_site){
+    x[i,1] ~ dbern(psi)
+  }
+  
+
+  for(i in 1:n_site){
+    logit(e[i]) = mu_e + beta_e * envt[i,1] + beta_sqr_e * envt[i,2] 
+    log(c[i]) = mu_c + beta_c * envt[i,1] + beta_sqr_c * envt[i,2]
+  }
+
+  logit(psi) = psi_log
+
+  # logit(detec) = detec_log
+  detec = 1
+
+  # Define prior for e/c/psi on logit scale
+  mu_e ~ dnorm(0, 0.1)
+  beta_e ~ dnorm(0, 0.1)
+  beta_sqr_e ~ dnorm(0, 0.1)
+
+  mu_c ~ dnorm(0, 0.1)
+  beta_c ~ dnorm(0, 0.1)
+  beta_sqr_c ~ dnorm(0, 0.1)
+
+  psi_log ~ dnorm(0, 0.1)
+
+# detec_log ~ dnorm(0, 0.1)
+
+}
