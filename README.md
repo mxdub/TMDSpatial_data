@@ -10,4 +10,4 @@ Depuis CRAN:
 + R2jags (after installing JAGS above)
 + Hmsc
 
-and from GitHub : https://github.com/mxdub/TMDSpatial_data, with R : devtools::install_github("mxdub/TMDSpatial_data")
+and from GitHub : https://github.com/mxdub/TMDSpatial, with R : devtools::install_github("mxdub/TMDSpatial")
