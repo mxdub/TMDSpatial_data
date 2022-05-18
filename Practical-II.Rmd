@@ -207,7 +207,7 @@ Prepare data for JAGS :
 
 serie_length = 20
 start_point = 10
-species = 2
+species = 1
 
 obs = occupancies[,,start_point:(start_point+serie_length-1)]
 obs = obs[species,,]
