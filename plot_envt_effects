@@ -1,0 +1,28 @@
+plot_envt_effect = function(env1, c_boot, e_boot, envt_opt){
+  p_boot = c_boot / (e_boot+c_boot)
+
+  to_p=tibble(x = env1,
+         median = apply(p_boot,2,median),
+         q_min = apply(p_boot,2,quantile, 0.025),
+         q_max = apply(p_boot,2,quantile, 0.975),
+         param = "expect_p")
+  to_c=tibble(x = env1,
+         median = apply(c_boot,2,median),
+         q_min = apply(c_boot,2,quantile, 0.025),
+         q_max = apply(c_boot,2,quantile, 0.975),
+         param = "col.")
+  to_e=tibble(x = env1,
+         median = apply(e_boot,2,median),
+         q_min = apply(e_boot,2,quantile, 0.025),
+         q_max = apply(e_boot,2,quantile, 0.975),
+         param = "ext.")
+  
+  toplot = rbind(to_p, to_c, to_e)
+  
+  ggplot(toplot, aes(x = x, y = median, color = param))+
+    geom_point()+
+    geom_ribbon(aes(ymin = q_min, ymax = q_max), alpha = 0.1)+
+    geom_vline(xintercept= envt_opt )+
+    scale_y_continuous(limits=c(0,1))+
+    theme_bw()
+}
