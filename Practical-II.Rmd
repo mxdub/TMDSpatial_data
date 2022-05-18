@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.width = 15)
 ```
 
 ```{r, echo = F}
@@ -573,7 +573,7 @@ They are the same models as previously but include an additional dimension !
 
 Let's simulate new data, but with competitive interactions now !
 
-```{r}
+```{r, message=F, output = F, results='hide', warning=FALSE}
 
 n_patch = 200
 n_species = 2
@@ -596,7 +596,9 @@ data_envt = get_envt(sim)
 
 abundances = sim_to_matrix(sim)
 occupancies = abund_to_occ(abundances)
+```
 
+```{r}
 plots_occupancies(occupancies)
 
 ```
@@ -640,14 +642,14 @@ inits = list(list(x = x))
 
 ### Time-constant colonization
 
-```{r}
+```{r, fig.width=15}
 
 jm = jags(model.file = "./model/MacKenzie_mp_envt_morespecies",
           data = datax,
             inits = inits,
           n.chains = 1,
           n.iter = 2000,
-          n.burnin = 800,
+          n.burnin = 500,
           n.thin = 5,
           parameters.to.save = parameters)
 
@@ -682,6 +684,7 @@ plot(apply(p_boot[[2]], 2, median) ~ apply(occupancies[2,,], 1, mean), xlim = c(
 abline(a=0, b=1, add = TRUE)
 
 ```
+
 ```{r}
 ## Add simulation ?
 
@@ -735,6 +738,8 @@ for(s in 1:n_species){
 cowplot::plot_grid(g[[1]], g[[2]], ncol=2)
 
 ```
+
+
 ### Time-varying colonization
 
 ```{r, eval = F, echo = F}
@@ -743,7 +748,7 @@ jm = jags(model.file = "./model/Levins_like_envt_morespecies",
             inits = inits,
           n.chains = 1,
           n.iter = 2000,
-          n.burnin = 800,
+          n.burnin = 500,
           n.thin = 5,
           parameters.to.save = parameters)
 
@@ -777,6 +782,7 @@ cowplot::plot_grid(plot_envt_effect(data_envt$env1, c_boot[[1]], e_boot[[1]], en
 
 
 ```
+
 ```{r, echo = F, eval = F}
 ## Add simulation ?
 
@@ -833,7 +839,7 @@ What kind of improvement can be made on such models ? (think HMSC)
 
 ### Interacting species ?
 
-```{r}
+```{r, fig.width=15}
 
 datax <- list(obs = obs,
               n_species = n_species,
@@ -848,8 +854,8 @@ jm = jags(model.file = "./model/MacKenzie_mp_envt_morespecies_interacting",
           data = datax,
             inits = inits,
           n.chains = 1,
-          n.iter = 2000,
-          n.burnin = 1000,
+          n.iter = 3000,
+          n.burnin = 100,
           n.thin = 5,
           parameters.to.save = parameters)
 
@@ -993,7 +999,7 @@ cowplot::plot_grid(g[[1]], g[[2]], ncol=2)
 
 ```
 
-```{r}
+```{r, eval = F, echo = F}
 
 n_patch = 200
 n_species = 2
@@ -1001,7 +1007,7 @@ n_species = 2
 # Define environmental optima
 envt_opt = c(0.40, 0.6)
 
-env.df = sim$env.df
+env.df = sim$env.df %>% select(-time_run)
 landscape = sim$landscape
 
 sim2 = simulate_MC(patches = n_patch,     # Number of patch
@@ -1012,14 +1018,12 @@ sim2 = simulate_MC(patches = n_patch,     # Number of patch
                   env_niche_breadth = 0.09, # Niche breadth (~ sd of the Gaussian)
                   int_mat = matrix( c(0.05,0.0,
                                       0.0,0.05) , nrow = 2, ncol = 2), # Interaction matrix
-                  local_start = F,
-                  env.df = env.df,
-                  landscape = landscape)
+                  local_start = F)
 
-data_envt = get_envt(sim2)
+data_envt = get_envt(sim)
 
 
-abundances = sim_to_matrix(sim2)
+abundances = sim_to_matrix(sim)
 occupancies = abund_to_occ(abundances)
 
 plots_occupancies(occupancies)
