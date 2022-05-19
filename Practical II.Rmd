@@ -411,8 +411,8 @@ jm = jags(model.file = "./model/MacKenzie_mp_envt",
 
 # traceplot(jm)
 
-# library(ggmcmc)
-# ggmcmc(ggs(as.mcmc(jm$BUGSoutput$sims.array[,1,])), file = './output1.pdf' )
+library(ggmcmc)
+ggmcmc(ggs(as.mcmc(jm$BUGSoutput$sims.array[,1,])), file = './output1.pdf' )
 
 print(jm)
 
@@ -868,11 +868,29 @@ e_related_param = list(jm$BUGSoutput$sims.array[,1,c('mu_e[1]', 'beta_e[1]', 'be
 
 envt_matrix = as.matrix(tibble(intcp = 1, env1 = dt_envt_scaled[,1]) %>% mutate(env1sqr = env1^2))
 
+# W/O
+
 c_boot = list( inv.logit(c_related_param[[1]] %*% t(envt_matrix)),
                inv.logit(c_related_param[[2]] %*% t(envt_matrix)) )
 
 e_boot = list( inv.logit(e_related_param[[1]] %*% t(envt_matrix)),
                inv.logit(e_related_param[[2]] %*% t(envt_matrix)) )
+
+gamma_e = jm$BUGSoutput$sims.array[,1,c('gamma_e[1]', 'gamma_e[2]')]
+gamma_c = jm$BUGSoutput$sims.array[,1,c('gamma_c[1]', 'gamma_c[2]')]
+
+cowplot::plot_grid(plot_envt_effect(data_envt$env1, c_boot[[1]], e_boot[[1]], envt_opt[1]),
+                    plot_envt_effect(data_envt$env1, c_boot[[2]], e_boot[[2]], envt_opt[2]),
+                   ncol = 2)
+
+
+# W/
+
+c_boot = list( inv.logit(c_related_param[[1]] %*% t(envt_matrix) - 0.12),
+               inv.logit(c_related_param[[2]] %*% t(envt_matrix) - 0.10) )
+
+e_boot = list( inv.logit(e_related_param[[1]] %*% t(envt_matrix) + 1.38),
+               inv.logit(e_related_param[[2]] %*% t(envt_matrix) + 0.36) )
 
 gamma_e = jm$BUGSoutput$sims.array[,1,c('gamma_e[1]', 'gamma_e[2]')]
 gamma_c = jm$BUGSoutput$sims.array[,1,c('gamma_c[1]', 'gamma_c[2]')]
