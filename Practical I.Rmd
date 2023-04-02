@@ -36,7 +36,7 @@ library(tidyverse)
 library(vegan)
 
 n_patch = 250
-n_species = 10
+n_species = 5
 
 sim = simulate_MC(patches = n_patch,     # Number of patch
                   species = n_species,   # Number of species
@@ -101,7 +101,7 @@ Several distances measures can be used for ordinations. They vary in how (relati
 
 As a rule of thumb:
 
--   Bray-Curtis distance : If absolute abondances differences are important
+-   Bray-Curtis distance : If absolute abundances differences are important
 -   Hellinger distance : If relative abundances differences are important - and common species important
 -   Chi square distance : If relative abundances differences are important - and rare species important
 
@@ -125,7 +125,7 @@ pcnms = scores(pcnm(dist_matrix))
 
 ```
 
-They represent autocorrelation at various scales... For exemple, the three first vectors :
+They represent autocorrelation at various scales... For example, the three first vectors :
 
 ```{r, fig.height=5, fig.width=15}
 
@@ -333,7 +333,7 @@ Using the simulation function above, it's possible to simulate either fully nich
 
 -   Niche component : small vs. large 'envt_niche_breadth' (e.g., 0.1 vs . 1)
 -   Dispersal component : slow vs. quick decrease rate of disp. kernel 'kernel_exp' (0.01 vs. 0.2)
--   Environmental auto-correlation : no correlation vs. fully auto correlated 'env1Scale' (from 1 to 999)
+-   Environmental auto-correlation : no correlation vs. fully auto correlated 'env1Scale' (from 100 to 0.01)
 
 Can try by yourself !
 
@@ -398,7 +398,7 @@ vp
 ```{r, eval = F, echo = F, message=F, output = F, results='hide', warning=FALSE}
 sim = simulate_MC(patches = n_patch,       # Number of patch
                   species = n_species,     # Number of species
-                  env1Scale = 100,           # Spatial autocorrelation for environmental variable (from 1 to 999)
+                  env1Scale = 100,           # Spatial autocorrelation for environmental variable (from 0.01 - strong autocorr. to 100 - no autocorr.)
                   env_niche_breadth = 0.1, # Niche effects
                   kernel_exp = 0.01)
 
