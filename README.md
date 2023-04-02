@@ -1,10 +1,10 @@
 # TMDSpatial_data
 
-Installation JAGS
-https://sourceforge.net/projects/mcmc-jags/files/
-(ou https://mcmc-jags.sourceforge.io/)
+Installation JAGS 
++ Windows : https://sourceforge.net/projects/mcmc-jags/files/ (ou https://mcmc-jags.sourceforge.io/)
++ Unix : sudo apt-get update && sudo apt-get install jags
 
-Depuis CRAN:
+Depuis CRAN (pour R):
 
 + vegan
 + R2jags (after installing JAGS above)
