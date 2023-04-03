@@ -159,7 +159,7 @@ Probability of occupancy can be define as :
 
 $$x_t = x_{t-1} (1-\epsilon) + (1 - x_{t-1}) \gamma $$
 
-Where both $\epsilon$ and $\gamma$ as constant probabilities.
+Where both $\epsilon$ and $\gamma$ are constant probabilities.
 
 JAGS implementation is given in the MacKenzie_mp file :
 
@@ -297,9 +297,9 @@ ggplot(rep)+
 
 ```
 
-### Simple metapopulation model (MacKenzie like) - with time-varying colonization rate
+### Simple metapopulation model (MacKenzie like) - with time-dependent colonization rate
 
-How could write a model with time varying colonization rate ? Could that be used for projections ?
+How could write a model with time dependent colonization rate ? Could that be used for projections ?
 
 
 ### Simple metapopulation model (more Levins like) - with colonization rate depending on mp occupancy
