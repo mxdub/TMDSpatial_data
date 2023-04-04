@@ -13,6 +13,8 @@ and from GitHub : https://github.com/mxdub/TMDSpatial, with R : devtools::instal
 
 # Content :
 
+You can download the repo on your computer, we will use model/ and data/).
+
 + Practical I : ordination methods (especially, variation partitioning on simulated data), associated data in the data/ folder
 + Practical II :  dyn. occupancy models (from metapop. to two-species metapopulation with environmental effects), models are stored in the model/ folder.
 + examples.R : bench of stuff... more or less all presented methods and some jSDM 
